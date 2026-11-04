@@ -1,7 +1,7 @@
 {
-  "name": "Sanduq e Khadija",
-  "short_name": "Sanduq-Khadija",
-  "description": "Sanduq e Khadija - apna jama aur loan ka hisaab",
+  "name": "Sanduq e Khadija Bank",
+  "short_name": "Khadija Bank",
+  "description": "Sanduq e Khadija Bank - apna jama aur loan ka hisaab",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sanduq e Khadija</title>
+<title>Sanduq e Khadija Bank</title>
 <meta name="theme-color" content="#0a7d4f">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -30,7 +30,7 @@
 </style>
 </head>
 <body>
-<div class="top">Sanduq e Khadija</div>
+<div class="top">Sanduq e Khadija Bank</div>
 
 <div id="memberBox">
   <input id="acc" placeholder="Account Number" inputmode="numeric">
@@ -49,6 +49,7 @@
     <button id="tD" onclick="setMode('Loan Diya')">Loan Diya</button>
     <button id="tW" onclick="setMode('Loan Wapas')">Kist Wapas</button>
     <button id="tP" onclick="setMode('Loan Pass')">Loan Pass Message</button>
+    <button id="tC" onclick="setMode('Close')">Account Band</button>
   </div>
   <input id="eacc" placeholder="Member Account Number" inputmode="numeric">
   <input id="eamt" type="number" placeholder="Amount" value="1000">
@@ -81,16 +82,29 @@ const rs = n => '₹' + Number(n).toLocaleString('en-IN');
 
 function api(body) {
   if (API.indexOf('PASTE') >= 0) return Promise.reject(new Error('NOAPI'));
+  const ctl = new AbortController();
+  const timer = setTimeout(function () { ctl.abort(); }, 30000);
   return fetch(API, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(body)
-  }).then(function (r) { return r.json(); });
+    body: JSON.stringify(body),
+    signal: ctl.signal
+  }).then(function (r) { return r.text(); }).then(function (t) {
+    clearTimeout(timer);
+    try { return JSON.parse(t); }
+    catch (x) { throw new Error('BADREPLY'); }
+  }).catch(function (e) {
+    clearTimeout(timer);
+    if (e && e.name === 'AbortError') throw new Error('TIMEOUT');
+    throw e;
+  });
 }
 function errText(e) {
-  return (e && e.message === 'NOAPI')
-    ? 'App ka API link abhi set nahi hua (index.html me).'
-    : 'Internet check karein, phir dobara koshish karein.';
+  const m = e && e.message;
+  if (m === 'NOAPI') return 'App ka API link abhi set nahi hua (index.html me).';
+  if (m === 'BADREPLY') return 'Server ka jawab galat aaya. Apps Script me doPost wala code aur New version deploy check karein.';
+  if (m === 'TIMEOUT') return 'Server se jawab nahi aaya (bahut der lagi). Dobara koshish karein.';
+  return 'Internet check karein, phir dobara koshish karein. (' + (m || 'error') + ')';
 }
 
 let pend = null;
@@ -119,6 +133,8 @@ function setMode(t) {
   $('tD').classList.toggle('on', t === 'Loan Diya');
   $('tW').classList.toggle('on', t === 'Loan Wapas');
   $('tP').classList.toggle('on', t === 'Loan Pass');
+  $('tC').classList.toggle('on', t === 'Close');
+  $('eamt').classList.toggle('hidden', t === 'Close');
   $('dpbox').classList.toggle('hidden', t === 'Loan Pass');
   $('chk').textContent = t === 'Loan Pass' ? 'Message Banayein' : 'Pehle Check Karein';
   $('eamt').value = t === 'Jama' ? 1000 : '';
@@ -188,8 +204,35 @@ function copyMsg() {
   catch (e) { $('copied').textContent = 'Message ko select karke haath se copy karein.'; }
 }
 
+function closeCheck() {
+  const pw = $('apw').value, acc = $('eacc').value, dt = $('edate').value, md = mode2;
+  if (!md) { $('aout').innerHTML = '<span class="bad">Pehle Bank ya Cash chunein (paisa kaise wapas diya).</span>'; return; }
+  $('aout').textContent = 'Ruk jayein...';
+  api({ action: 'closeprev', pw: pw, acc: acc }).then(function (r) {
+    if (!r.ok) { $('aout').innerHTML = '<span class="bad">' + esc(r.msg) + '</span>'; return; }
+    pend = { pw: pw, acc: acc, dt: dt, md: md };
+    $('aout').innerHTML = '<div class="card"><b>' + esc(r.naam) + '</b><br>Wapas dene wala paisa: <b>' + rs(r.balance) + '</b>' +
+      '<br>Tareekh: ' + esc(dt.split('-').reverse().join('-')) + '<br>Kaise: ' + esc(md) +
+      '<br><span class="bad">Account hamesha ke liye band ho jayega.</span></div>' +
+      '<button onclick="doClose()">Haan, Account Band Karein</button>';
+  }).catch(fail2);
+}
+
+function doClose() {
+  if (!pend) return;
+  const p = pend; pend = null;
+  $('aout').textContent = 'Ruk jayein...';
+  api({ action: 'close', pw: p.pw, acc: p.acc, dt: p.dt, md: p.md }).then(function (r) {
+    if (!r.ok) { $('aout').innerHTML = '<span class="bad">' + esc(r.msg) + '</span>'; return; }
+    $('aout').innerHTML = '<div class="card"><b class="ok">' + esc(r.msg) + '</b><br>' + esc(r.naam) +
+      '<br>Wapas diya gaya paisa: <b>' + rs(r.balance) + '</b></div>';
+    $('eacc').value = '';
+  }).catch(fail2);
+}
+
 function check() {
   if (mode === 'Loan Pass') { passMsg(); return; }
+  if (mode === 'Close') { closeCheck(); return; }
   const pw = $('apw').value, acc = $('eacc').value, type = mode, amt = $('eamt').value;
   const z1 = $('z1').value, z2 = $('z2').value, dt = $('edate').value, md = mode2;
   if (type !== 'Loan Diya' && !md) { $('aout').innerHTML = '<span class="bad">Pehle Bank ya Cash chunein.</span>'; return; }
@@ -215,6 +258,10 @@ function doSave() {
     $('eacc').value = ''; $('z1').value = ''; $('z2').value = ''; $('edate').value = today();
   }).catch(fail2);
 }
+
+// Enter dabane se bhi login ho
+$('acc').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('pin').focus(); });
+$('pin').addEventListener('keydown', function (e) { if (e.key === 'Enter') login(); });
 
 // Chrome me "App install karein" button
 let deferred = null;
