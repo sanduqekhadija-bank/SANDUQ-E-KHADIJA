@@ -157,10 +157,19 @@ function login() {
   }).catch(fail);
 }
 
+// QR ki tasveer: qr.png, na mile to qr.jpg, qr.jpeg, qr.webp try karta hai
+const QR_FILES = ['qr.png', 'qr.jpg', 'qr.jpeg', 'qr.webp'];
+const QR_HOUR = Math.floor(Date.now() / 3600000);
+function qrNext(img) {
+  const n = Number(img.getAttribute('data-n') || 0) + 1;
+  if (n < QR_FILES.length) { img.setAttribute('data-n', n); img.src = QR_FILES[n] + '?h=' + QR_HOUR; }
+  else img.remove();
+}
+
 function payBox(p) {
   if (!p) return '';
   return '<div class="card"><b>Paisa bhejne ke liye</b>' +
-    '<img src="qr.png" alt="" onerror="this.remove()" style="width:100%;max-width:260px;display:block;margin:8px auto">' +
+    '<img src="qr.png?h=' + QR_HOUR + '" data-n="0" alt="" onerror="qrNext(this)" style="width:100%;max-width:260px;display:block;margin:8px auto">' +
     'UPI ID: <b id="upiid">' + esc(p.upi) + '</b>' + (p.name ? '<br>Naam: ' + esc(p.name) : '') +
     '<button onclick="copyUpi()">UPI ID Copy Karein</button><span id="upiok" class="ok"></span>' +
     '<br>Paisa bhejne ke baad screenshot bank ko bhejein.' +
