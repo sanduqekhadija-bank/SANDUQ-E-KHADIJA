@@ -144,12 +144,38 @@ function setMode(t) {
 function fail(e) { $('out').innerHTML = '<span class="bad">' + esc(errText(e)) + '</span>'; }
 function fail2(e) { $('aout').innerHTML = '<span class="bad">' + esc(errText(e)) + '</span>'; }
 
+let lastMember = { acc: '', naam: '' };
+let payWa = '';
 function login() {
   $('out').textContent = 'Ruk jayein...';
-  api({ action: 'login', acc: $('acc').value, pin: $('pin').value }).then(function (r) {
+  const acc = $('acc').value;
+  api({ action: 'login', acc: acc, pin: $('pin').value }).then(function (r) {
     if (!r.ok) { $('out').innerHTML = '<span class="bad">' + esc(r.msg || 'Account number ya PIN galat hai.') + '</span>'; return; }
-    $('out').innerHTML = render(r.data);
+    lastMember = { acc: String(acc).trim(), naam: r.data.naam };
+    payWa = (r.pay && r.pay.wa) || '';
+    $('out').innerHTML = render(r.data) + payBox(r.pay);
   }).catch(fail);
+}
+
+function payBox(p) {
+  if (!p) return '';
+  return '<div class="card"><b>Paisa bhejne ke liye</b>' +
+    '<img src="qr.png" alt="" onerror="this.remove()" style="width:100%;max-width:260px;display:block;margin:8px auto">' +
+    'UPI ID: <b id="upiid">' + esc(p.upi) + '</b>' + (p.name ? '<br>Naam: ' + esc(p.name) : '') +
+    '<button onclick="copyUpi()">UPI ID Copy Karein</button><span id="upiok" class="ok"></span>' +
+    '<br>Paisa bhejne ke baad screenshot bank ko bhejein.' +
+    (p.wa ? '<div class="wa" onclick="waShot()">WhatsApp par screenshot bhejein</div>' : '') + '</div>';
+}
+function copyUpi() {
+  const t = $('upiid').textContent;
+  const ok = function () { $('upiok').textContent = ' Copy ho gaya.'; };
+  const no = function () { $('upiok').textContent = ' Haath se copy karein.'; };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(ok).catch(no);
+  else no();
+}
+function waShot() {
+  const msg = 'Salamun Alaikum, mera Account No ' + lastMember.acc + ' (' + lastMember.naam + ') hai. Maine paisa bheja hai, screenshot bhej raha hoon.';
+  window.open('https://wa.me/' + payWa + '?text=' + encodeURIComponent(msg), '_blank');
 }
 
 function render(d) {
